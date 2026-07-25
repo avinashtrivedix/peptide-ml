@@ -3,57 +3,38 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors
 from xgboost import XGBRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 
-print("Starting peptide Machine Learning Pipeline...")
+print("runneinf pipeline Integration Test on 525 Samples...")
 
 # 1. Dataset : Sample peptide sequence with mpck gut-absorbtion scores
 
-data = [
-    {"seq": "LL", "absorption": 0.85},
-    {"seq": "LAG", "absorption": 0.92},
-    {"seq": "VIL", "absorption": 0.78},
-    {"seq": "GDF", "absorption": 0.45},
-    {"seq": "FLL", "absorption": 0.88},
-    {"seq": "AAA", "absorption": 0.30},
-    {"seq": "PHE", "absorption": 0.65},
-    {"seq": "VAL", "absorption": 0.72}
-]
+df = pd.read_csv("data/peptides.csv")
 
-df = pd.DataFrame(data)
+# 2. Separate feature X and target Y
+feature_cols = ['molecular_weight', 'logp', 'tpsa', 'h_donors']
+x = df[feature_cols]
+y = df["absorption_score"]
 
+# 3. Train/Test Split (80% train and 20% test)
+x_train, x_test, y_train, y_test = train_test_split(x,y, test_size = 0.2, random_state=42)
 
-# Feature Extraction engine using RDKit
+#Model training
+model = XGBRegressor(n_estimators = 50, 
+                     max_depth = 3, 
+                     learning_rate = 0.1,
+                     random_state = 42
+                     )
 
-def extract_chemical_feature(seq):
-    mol = Chem.MolFromFASTA(seq)
-    if not mol:
-        return [0,0,0,0]
-    return [
-        Descriptors.MolWt(mol),         # Molecular Weight
-        Descriptors.MolLogP(mol),       # Lipophilicity(fat solubility)
-        Descriptors.TPSA(mol),          # Surface Area
-        Descriptors.NumHDonors(mol)     # Hydrogen Bond Donor
-    ]
+model.fit(x_train, y_train)
 
+#Evaluation
+predictions  = model.predict(x_test)
+mse = mean_squared_error(y_test, predictions)
+r2 = r2_score(y_test, predictions)
 
-# convert fast test sting -> 4d numerical vectors
-features = df['seq'].apply(extract_chemical_feature).tolist()
-X = pd.DataFrame(features, columns= ['MolWt', 'LogP', 'TPSA', 'H_Donors'])
-y = df['absorption']
-
-#3 train/test split & XGboost Regression
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25, random_state= 42)
-model = XGBRegressor(n_estimators =10,max_depth = 2, random_state = 42 )
-model.fit(X_train, y_train)
-
-#model_evaluation
-prediction  = model.predict(X_test)
-mse = mean_squared_error(y_test, prediction)
-
-print("=== PIPELINE EXECUTION SUCCESSFUL ===")
-print(f"Extracted Feature Matrix Shape: {X.shape}")
-print(f"Baseline XGBoost Mean Squared Error: {mse:.4f}")
-print("\nSample Prediction vs Actual:")
-print(f"Predicted: {prediction[0]:.2f} | Actual: {y_test.iloc[0]:.2f}")
-
+print("=== INTEGRATION TEST PASSED ===")
+print(f"Total Samples: {len(df)}")
+print(f"Training Set: {len(x_train)} rows | Test Set: {len(x_test)} rows")
+print(f"Mean Squared Error (MSE): {mse:.4f}")
+print(f"R^2 Score: {r2:.4f}")
