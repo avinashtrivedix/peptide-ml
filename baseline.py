@@ -4,24 +4,29 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, roc_auc_score, classification_report
 from sklearn.metrics import mean_squared_error, r2_score
 
-print("runneinf pipeline Integration Test on 525 Samples...")
+print("Training XGBoost with RDKit  + AAC Features (27 Dimensions)...\n")
 
 # 1. Dataset : Sample peptide sequence with mpck gut-absorbtion scores
 
 df = pd.read_csv("data/real_peptides.csv")
 
 # 2. Separate feature X and target Y
-feature_cols = ['length', 'molecular_weight', 'logp', 'tpsa', 'h_donors', 'h_acceptors', 'rotatable_bonds']
+
+ignore_cols = ['sequence', 'is_bioactive']
+feature_cols = [c for c in df.columns if c not in ignore_cols]
 x = df[feature_cols]
 y = df['is_bioactive']
 
 # 3. Train/Test Split (80% train and 20% test)
-X_train, X_test, y_train, y_test = train_test_split(x,y, test_size = 0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(x,y, 
+                                                    test_size = 0.2, 
+                                                    random_state=42, 
+                                                    stratify=y)     # ensures equal class balance in train and test sets
 
 #Model training
-model = XGBClassifier(n_estimators = 50, 
-                     max_depth = 3, 
-                     learning_rate = 0.1,
+model = XGBClassifier(n_estimators = 100, 
+                     max_depth = 4, 
+                     learning_rate = 0.05,
                      random_state = 42
                      )
 
@@ -33,8 +38,7 @@ probabilities = model.predict_proba(X_test)[:, 1]
 
 acc = accuracy_score(y_test, predictions)
 auc = roc_auc_score(y_test, probabilities)
-mse = mean_squared_error(y_test, predictions)
-r2 = r2_score(y_test, predictions)
+
 
 print("=== REAL EXPERIMENTAL MODEL PERFORMANCE ===")
 print(f"Total Samples: {len(df)} | Test Set: {len(X_test)}")

@@ -10,6 +10,11 @@ print("📥 Downloading Real Experimental Bioactive Peptide Dataset...")
 URL_POS = "https://raw.githubusercontent.com/dataprofessor/AMP/main/train_po.fasta"
 URL_NEG = "https://raw.githubusercontent.com/dataprofessor/AMP/main/train_ne.fasta"
 
+
+AMINO_ACIDS = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 
+               'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+
+
 def parse_fasta_from_url(url):
     response = requests.get(url)
     lines = response.text.splitlines()
@@ -34,37 +39,35 @@ print(f"Downloaded {len(pos_seqs)} Active Peptides and {len(neg_seqs)} Inactive 
 
 records = []
 
-# Process Active Peptides (Label = 1)
-for seq in pos_seqs:
-    mol = Chem.MolFromFASTA(seq)
-    if mol:
-        records.append({
-            "sequence": seq,
-            "length": len(seq),
-            "molecular_weight": Descriptors.MolWt(mol),
-            "logp": Descriptors.MolLogP(mol),
-            "tpsa": Descriptors.TPSA(mol),
-            "h_donors": Descriptors.NumHDonors(mol),
-            "h_acceptors": Descriptors.NumHAcceptors(mol),
-            "rotatable_bonds": Descriptors.NumRotatableBonds(mol),
-            "is_bioactive": 1
-        })
+def process_sequences(seq_list, label):
+    for seq in seq_list:
+        mol = Chem.MolFromFASTA(seq)
+        if mol:
+            seq_len = len(seq)
+            # base RDkit features
+            record = {
+                "sequence": seq,
+                "length": seq_len,
+                "molecular_weight": Descriptors.MolWt(mol),
+                "logp": Descriptors.MolLogP(mol),
+                "tpsa": Descriptors.TPSA(mol),
+                "h_donors": Descriptors.NumHDonors(mol),
+                "h_acceptors": Descriptors.NumHAcceptors(mol),
+                "rotatable_bonds": Descriptors.NumRotatableBonds(mol),
+                "is_bioactive": label
+            }
+        
+            # Extract 20 Amino Acid Composition (AAC) Features
+            for aa in AMINO_ACIDS:
+                record[f"aac_{aa}"] = round(seq.count(aa)/ seq_len,4)
+                #at it's core amino acid composition is just basic arithmetic | AAC = how many times a specificamino acid appears / Total length of the petide sequence
 
-# Process Inactive Peptides (Label = 0)
-for seq in neg_seqs:
-    mol = Chem.MolFromFASTA(seq)
-    if mol:
-        records.append({
-            "sequence": seq,
-            "length": len(seq),
-            "molecular_weight": Descriptors.MolWt(mol),
-            "logp": Descriptors.MolLogP(mol),
-            "tpsa": Descriptors.TPSA(mol),
-            "h_donors": Descriptors.NumHDonors(mol),
-            "h_acceptors": Descriptors.NumHAcceptors(mol),
-            "rotatable_bonds": Descriptors.NumRotatableBonds(mol),
-            "is_bioactive": 0
-        })
+            records.append(record)
+
+process_sequences(pos_seqs, 1)
+process_sequences(neg_seqs, 0)
+
+
 
 df = pd.DataFrame(records)
 
