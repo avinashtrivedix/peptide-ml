@@ -101,3 +101,9 @@ aac_M         4.49%        Methionine (Hydrophobic)                   ──> An
 - **Basic GCN (5-D Features):** 65.47% Mean Val Acc | 0.6869 Mean Val ROC-AUC
 - **Enriched GCN (8-D Features):** 65.66% Mean Val Acc | 0.6978 Mean Val ROC-AUC
 - **Finding:** Adding rich atomic features (valence, hybridization, mass) slightly improved GCN performance (+0.0109 AUC), but isotropic message passing still trails tabular tree ensembles due to data scarcity.
+
+### Tier 2B: Geometric Deep Learning (Multi-Head GAT)
+- **Multi-Head GAT (8-D Features, 4 Heads):** 60.44% Mean Val Acc (±8.69%) | 0.6375 Mean Val ROC-AUC (±0.1158)
+- **Peak Performance vs. Convergence Collapse:** On converged folds (Folds 3 & 4), multi-head attention peaked at **0.7651 ROC-AUC**, outperforming GCN (0.6978). However, Folds 1 & 2 suffered complete gradient collapse (AUC 0.5000 / 50.00% accuracy, predicting random chance).
+- **Finding:** Multi-head graph attention successfully captures key biological functional groups (like Lysine $K$ side-chains), but training GAT from scratch on a small dataset ($N=3,058$) suffers from high variance and gradient instability.
+- **Final Tier 2 Verdict:** Both GCN and GAT trained from scratch fail to beat the Tier 1 XGBoost baseline (0.8149 ROC-AUC). This empirical bottleneck proves that 2D molecular graphs cannot learn robust 3D structural representations without massive pre-training, directly motivating **Tier 3 (Meta's ESM-2 Transformer)**.

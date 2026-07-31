@@ -1,17 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# 1. Fixed PyG DataLoader Import
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.nn import GATConv, global_mean_pool
 from rdkit import Chem
 import requests
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, roc_auc_score
 
-print("🚀 Running Tier 2A (V2): Enriched Graph Convolutional Network (GCN)...\n")
+print("🚀 Running Tier 2B: Multi-Head Graph Attention Network (GAT)...\n")
 
 URL_POS = "https://raw.githubusercontent.com/dataprofessor/AMP/main/train_po.fasta"
 URL_NEG = "https://raw.githubusercontent.com/dataprofessor/AMP/main/train_ne.fasta"
@@ -30,12 +29,12 @@ def parse_fasta(url):
 pos_seqs = parse_fasta(URL_POS)
 neg_seqs = parse_fasta(URL_NEG)
 
+# Atom Featurizer (8-D Features + Clean Valence API)
 def sequence_to_graph(seq, label):
     mol = Chem.MolFromFASTA(seq)
     if mol is None:
         return None
     
-    # 2. Fixed Atom Featurizer (Using updated Valence API)
     node_features = []
     for atom in mol.GetAtoms():
         node_features.append([
@@ -45,7 +44,7 @@ def sequence_to_graph(seq, label):
             int(atom.GetIsAromatic()),
             atom.GetTotalNumHs(),
             int(atom.GetHybridization()),
-            atom.GetValence(Chem.ValenceType.IMPLICIT), # 👈 Fixed deprecation
+            atom.GetValence(Chem.ValenceType.IMPLICIT),
             atom.GetMass() * 0.01
         ])
     x = torch.tensor(node_features, dtype=torch.float)
@@ -76,12 +75,16 @@ for seq in neg_seqs:
 
 print(f"Constructed {len(dataset)} molecular graphs!\n")
 
-class PeptideGCNEnriched(nn.Module):
-    def __init__(self, in_channels, hidden_channels):
-        super(PeptideGCNEnriched, self).__init__()
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, hidden_channels)
-        self.conv3 = GCNConv(hidden_channels, hidden_channels)
+# Multi-Head Graph Attention Network Architecture
+class PeptideGAT(nn.Module):
+    def __init__(self, in_channels, hidden_channels, heads=4):
+        super(PeptideGAT, self).__init__()
+        # Layer 1: 4 Attention Heads (Output dimension = hidden_channels * heads)
+        self.gat1 = GATConv(in_channels, hidden_channels, heads=heads, concat=True)
+        # Layer 2: 4 Attention Heads
+        self.gat2 = GATConv(hidden_channels * heads, hidden_channels, heads=heads, concat=True)
+        # Layer 3: Single Head for aggregation
+        self.gat3 = GATConv(hidden_channels * heads, hidden_channels, heads=1, concat=False)
         
         self.fc = nn.Sequential(
             nn.Linear(hidden_channels, hidden_channels // 2),
@@ -91,9 +94,9 @@ class PeptideGCNEnriched(nn.Module):
         )
 
     def forward(self, x, edge_index, batch):
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.relu(self.conv2(x, edge_index))
-        x = F.relu(self.conv3(x, edge_index))
+        x = F.elu(self.gat1(x, edge_index))
+        x = F.elu(self.gat2(x, edge_index))
+        x = F.elu(self.gat3(x, edge_index))
         x = global_mean_pool(x, batch)
         x = self.fc(x)
         return x
@@ -103,7 +106,7 @@ skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 val_accs, val_aucs = [], []
 
-print("Training Enriched GCN across 5 Folds:")
+print("Training Multi-Head GAT across 5 Folds:")
 print("-" * 45)
 
 for fold, (train_idx, val_idx) in enumerate(skf.split(dataset, labels), 1):
@@ -113,7 +116,7 @@ for fold, (train_idx, val_idx) in enumerate(skf.split(dataset, labels), 1):
     train_loader = DataLoader(train_sub, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_sub, batch_size=32, shuffle=False)
 
-    model = PeptideGCNEnriched(in_channels=8, hidden_channels=64)
+    model = PeptideGAT(in_channels=8, hidden_channels=32, heads=4)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     criterion = nn.CrossEntropyLoss()
 
@@ -146,5 +149,5 @@ for fold, (train_idx, val_idx) in enumerate(skf.split(dataset, labels), 1):
     print(f"Fold {fold} | Val Acc: {acc*100:.2f}% | Val AUC: {auc:.4f}")
 
 print("-" * 45)
-print(f"Mean Enriched GCN Val Accuracy: {np.mean(val_accs)*100:.2f}% ± {np.std(val_accs)*100:.2f}%")
-print(f"Mean Enriched GCN Val ROC-AUC:  {np.mean(val_aucs):.4f} ± {np.std(val_aucs):.4f}")
+print(f"Mean GAT Val Accuracy: {np.mean(val_accs)*100:.2f}% ± {np.std(val_accs)*100:.2f}%")
+print(f"Mean GAT Val ROC-AUC:  {np.mean(val_aucs):.4f} ± {np.std(val_aucs):.4f}")
