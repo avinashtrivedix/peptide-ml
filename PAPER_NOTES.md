@@ -107,3 +107,16 @@ aac_M         4.49%        Methionine (Hydrophobic)                   ──> An
 - **Peak Performance vs. Convergence Collapse:** On converged folds (Folds 3 & 4), multi-head attention peaked at **0.7651 ROC-AUC**, outperforming GCN (0.6978). However, Folds 1 & 2 suffered complete gradient collapse (AUC 0.5000 / 50.00% accuracy, predicting random chance).
 - **Finding:** Multi-head graph attention successfully captures key biological functional groups (like Lysine $K$ side-chains), but training GAT from scratch on a small dataset ($N=3,058$) suffers from high variance and gradient instability.
 - **Final Tier 2 Verdict:** Both GCN and GAT trained from scratch fail to beat the Tier 1 XGBoost baseline (0.8149 ROC-AUC). This empirical bottleneck proves that 2D molecular graphs cannot learn robust 3D structural representations without massive pre-training, directly motivating **Tier 3 (Meta's ESM-2 Transformer)**.
+
+### Tier 3: Foundation Protein Language Model (Meta ESM-2)
+- **Model:** `facebook/esm2_t6_8M_UR50D` (6-Layer, 8M Parameter Transformer)
+- **Representation:** 320-Dimensional Mean-Pooled Residue Embeddings
+- **Classifier:** XGBoost (`n_estimators=150`, `learning_rate=0.05`, `max_depth=4`)
+- **Metrics:** **74.52% ± 1.85%** Mean Val Acc | **0.8075 ± 0.0226** Mean Val ROC-AUC
+- **Finding:** Pre-trained sequence representations completely overcome the data scarcity bottleneck of GNNs (+0.17 AUC boost over Tier 2). ESM-2 matches hand-crafted biophysical feature engineering (Tier 1: 74.51%) using raw sequence strings alone, establishing a strong automated feature pipeline.
+
+### Tier 3 (Hybrid): Feature Fusion (Biophysical 27-D + ESM-2 320-D)
+- **Feature Space:** 347-Dimensional Concatenated Matrix ($X_{\text{hybrid}} = [X_{\text{bio}} \parallel X_{\text{esm}}]$)
+- **Classifier:** XGBoost (`n_estimators=150`, `learning_rate=0.05`, `max_depth=4`)
+- **Metrics:** **75.31% ± 1.58%** Mean Val Acc | **0.8109 ± 0.0216** Mean Val ROC-AUC (Peak Fold: 77.29% Acc / 0.8322 AUC)
+- **Finding:** Fusing explicit domain invariants with implicit pre-trained Transformer embeddings achieves our highest raw classification accuracy (75.31%). The explicit physical features stabilize decision boundaries where mean-pooled Transformer representations alone fall short.
