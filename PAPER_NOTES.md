@@ -120,3 +120,11 @@ aac_M         4.49%        Methionine (Hydrophobic)                   ──> An
 - **Classifier:** XGBoost (`n_estimators=150`, `learning_rate=0.05`, `max_depth=4`)
 - **Metrics:** **75.31% ± 1.58%** Mean Val Acc | **0.8109 ± 0.0216** Mean Val ROC-AUC (Peak Fold: 77.29% Acc / 0.8322 AUC)
 - **Finding:** Fusing explicit domain invariants with implicit pre-trained Transformer embeddings achieves our highest raw classification accuracy (75.31%). The explicit physical features stabilize decision boundaries where mean-pooled Transformer representations alone fall short.
+
+
+
+### Tier 3 (Scaling Law Experiment): ESM-2 35M Checkpoint (`facebook/esm2_t12_35M_UR50D`)
+- **Feature Space:** 507-Dimensional Matrix ($X_{\text{hybrid\_35m}} = [X_{\text{bio}} \parallel X_{\text{esm\_480d}}]$)
+- **Classifier:** XGBoost (`n_estimators=150`, `learning_rate=0.05`, `max_depth=4`)
+- **Metrics:** **74.23% ± 2.37%** Mean Val Acc | **0.8122 ± 0.0229** Mean Val ROC-AUC (Peak Fold ROC-AUC: **0.8419**)
+- **Finding:** Upgrading to the 35M parameter model achieved our highest peak discriminative performance (0.8419 ROC-AUC). However, the expanded 507-D feature space introduced mild variance across folds due to feature space sparsity relative to dataset size ($N=3058$), confirming the 347-D (8M) hybrid as the optimal production architecture.
