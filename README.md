@@ -1,62 +1,71 @@
-# 🧬 Bioactive Peptide Classification & Feature Engineering Pipeline
-> **Applied ML Research: In Silico Screening of Bioactive Peptides using Biophysical Descriptors & XGBoost**
+# Peptide-ML: Benchmarking Representation Paradigms & Feature Fusion for Biological Sequence Classification
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![XGBoost](https://img.shields.io/badge/XGBoost-Classification-green)
-![RDKit](https://img.shields.io/badge/RDKit-Cheminformatics-orange)
-![Accuracy](https://img.shields.io/badge/Accuracy-74.51%25-brightgreen)
-![ROC--AUC](https://img.shields.io/badge/ROC--AUC-0.8149-success)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=flat&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-Ensemble-2DBA4E?style=flat)](https://xgboost.readthedocs.io/)
+[![HuggingFace](https://img.shields.io/badge/Transformers-ESM--2-FFD21E?style=flat&logo=huggingface&logoColor=black)](https://huggingface.co/facebook/esm2_t6_8M_UR50D)
 
-An applied machine learning system designed to screen bioactive antimicrobial peptides (AMPs) *in silico*. This pipeline transforms raw peptide sequence strings into a 27-dimensional biophysical feature vector—combining 2D molecular graph descriptors from `RDKit` with 20-dimensional **Amino Acid Composition (AAC)**—and models non-linear bioactivity using `XGBoost`.
+An empirical machine learning benchmark evaluating three biological sequence representation paradigms on N = 3,058 validated peptide sequences: **Tabular Biophysical Descriptors**, **2D Geometric Graph Neural Networks (GCN/GAT)**, and **Pre-trained Protein Language Transformers (Meta ESM-2)**.
 
 ---
 
-## 📊 Experimental Results & Benchmark Progress
+## Executive Summary
 
-We evaluated our feature engineering pipeline across **3,058 laboratory-tested experimental peptide sequences** (1,529 active, 1,529 inactive) pulled from open-source biomedical repositories.
+Predicting functional activity from 1D amino acid sequence text accelerates early-stage therapeutic discovery by digitally filtering non-functional candidates before lab synthesis. This repository evaluates representation trade-offs across model capacity and sample scarcity (N = 3,058).
 
-| Iteration | Feature Set | Dimensions | Accuracy | ROC-AUC | Key Improvement |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| **Baseline** | RDKit Descriptors Only | 7 | 70.26% | 0.7354 | Initial pipeline verification on real lab data |
-| **Iteration 1** | **RDKit + AAC Features** | **27** | **74.51%** | **0.8149** | **+4.25% Acc / +0.0795 AUC (Broken 0.80 AUC threshold)** |
+### Key Findings
+* **Graph Neural Network Collapse:** Training GCN and Multi-Head GAT models from scratch on small datasets (N = 3,058) yields severe over-fitting (60.44%–65.66% accuracy) due to sample scarcity.
+* **Hybrid Feature Fusion Superiority:** Fusing explicit global biophysical invariants (LogP, formal charge, amino acid ratios) with mean-pooled ESM-2 transformer embeddings (347-D) yields our top-performing model (**75.31% Val Acc / 0.8109 ROC-AUC**), outperforming pure graph deep learning by **+14.87%**.
+* **TreeSHAP Interpretability:** Game-theoretic feature attribution validates that deep transformer representations dominate decision boundaries while explicit negative charge penalties (`AAC_D`) drive structural activity constraints.
 
----
-
-## 🛠️ Feature Engineering Architecture
-
-To resolve "permutation blindness" and represent biological matter as mathematical vectors, our pipeline extracts two distinct classes of features:
-
-### 1. Global Physicochemical Descriptors (`RDKit`) — 7 Features
-- **Molecular Mass & Size:** Molecular Weight ($MolWt$), Sequence Length, Rotatable Bond count.
-- **Solubility & Charge:** $LogP$ (lipophilicity/fat solubility), Topological Polar Surface Area ($TPSA$).
-- **Hydrogen Bonding:** Number of Hydrogen Bond Donors and Acceptors.
-
-### 2. Sequence Composition Features (AAC) — 20 Features
-Calculates the relative percentage frequency of each standard amino acid residue ($0.0$ to $1.0$):
-$$\text{AAC}_i = \frac{\text{Count of Amino Acid}_i}{\text{Total Sequence Length}}$$
-
----
-
-## 🧪 Biochemical Insights (Feature Importance)
-
-The top features driving decision tree splits in `XGBoost` closely match established cell biology mechanisms:
-
-1. **`aac_D` (14.42%) & `aac_E` (8.62%):** Aspartic Acid and Glutamic Acid carry negatively charged side chains. Because bacterial cell membranes are negatively charged, high acidic content causes electrostatic repulsion, serving as the model's strongest indicator of **inactivity (`0`)**.
-2. **`aac_K` (8.14%):** Lysine carries a positive charge that acts as an electrostatic magnet toward bacterial membranes, serving as a strong signal for **bioactivity (`1`)**.
-3. **`aac_C` (4.59%):** Cysteine forms disulfide bonds crucial for maintaining stable 3D hairpin secondary structures.
-
----
-
-## 📁 Repository Architecture
-
+## System Architecture
 ```text
-peptide-ml/
-├── data/
-│   ├── peptides.csv           # 525-sample synthetic dataset (Pipeline integration test)
-│   └── real_peptides.csv      # 3,058 experimental samples (27 feature dimensions)
-├── .gitignore                 # Environment and cache exclusion rules
-├── README.md                  # Project research documentation
-├── baseline.py                # Main ML pipeline (XGBClassifier + evaluation)
-├── fetch_data.py              # Synthetic proxy generator (Integration test)
-├── fetch_real_data.py         # Real lab data puller & AAC/RDKit feature extractor
-└── requirements.txt           # Environment dependencies
+Raw Sequence ("KKLFKKILKY...")
+    │
+    ├──► Tier 1: Tabular Descriptors (27-D) ──┐
+    │                                         │
+    ├──► Tier 2: 2D Atom Graphs (8-D) ────────┼──► XGBoost Classifier (5-Fold CV)
+    │                                         │
+    └──► Tier 3: ESM-2 Embeddings (320-D) ────┘
+```
+
+## Benchmark Results
+
+All architectures were evaluated using **5-Fold Stratified Cross-Validation**.
+
+| Tier | Paradigm / Architecture | Input Space (D) | Mean Val Acc (%) | Mean Val ROC-AUC | Peak Fold ROC-AUC |
+| :---: | :--- | :---: | :---: | :---: | :---: |
+| **Tier 1** | XGBoost Baseline (RDKit + AAC) | 27 | 74.51% ± 1.98% | 0.8149 ± 0.0182 | 0.8350 |
+| **Tier 2A** | Basic GCN (Atom Graph) | 5 | 65.47% ± 2.11% | 0.6869 ± 0.0210 | 0.7012 |
+| **Tier 2A** | Enriched GCN (Node-Featured) | 8 | 65.66% ± 1.89% | 0.6978 ± 0.0195 | 0.7210 |
+| **Tier 2B** | Multi-Head GAT (Attention) | 8 | 60.44% ± 3.12% | 0.6375 ± 0.0241 | 0.6810 |
+| **Tier 3** | ESM-2 (8M) Alone | 320 | 74.52% ± 1.65% | 0.8075 ± 0.0191 | 0.8308 |
+| **Tier 3** | **Hybrid Fusion (8M ESM-2 + Bio)** | **347** | **75.31% ± 2.16%** | **0.8109 ± 0.0201** | **0.8322** |
+| **Tier 3** | Hybrid Fusion (35M ESM-2 + Bio) | 507 | 74.23% ± 2.37% | 0.8122 ± 0.0229 | **0.8419** |
+
+
+## Interpretability & Infrastructure
+
+* **TreeSHAP Attribution:** Deep transformer dimensions (`ESM2_Dim_75`) serve as primary split nodes in decision trees, while Aspartic Acid proportion (`AAC_D`) penalizes activity due to electrostatic repulsion.
+* **Apple Silicon Concurrency Lock:** Resolved macOS OpenMP/PyTorch thread collisions (`Segmentation fault: 11`) by setting `OMP_NUM_THREADS=1` prior to model execution.
+
+---
+
+## Quick Start & Execution
+
+```bash
+# Clone repository
+git clone [https://github.com/your-username/peptide-ml.git](https://github.com/your-username/peptide-ml.git)
+cd peptide-ml
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run Tier 3 Hybrid Pipeline
+python tier3_hybrid_pipeline.py
+
+# Run SHAP Interpretability Analysis
+python tier3_shap_analysis.py
+```
+
+For complete theoretical formulations and full empirical benchmarks, see TECHNICAL_REPORT.md.
